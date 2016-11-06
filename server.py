@@ -1,38 +1,49 @@
-
+import argparse
 import time
 import socket
 import threading
 
-MINIMAL_AMOUNT = 0
-MAX_AMOUNT = 3
-PORT = 8000
+max_threads = 10
 HOST = "localhost"
 BUFFER = 1024
 UTF = "utf-8"
 RESPONSE_PACKET_ONE = 1
+RESPONSE_PACKET_TWO = 2
 STUDENT_ID = "13319349"
 allThreadsWorking = []
 waiting_conns = []
 
-def print_add(clientSocket, address):
-	print ("Received connection!")
+def sendResponse(clientSocket, address):
+	print ("Thread doing work....")
 	data = (clientSocket.recv(BUFFER)).decode(UTF)
 	whichPacket = handleInput(data)
 	if whichPacket == RESPONSE_PACKET_ONE:
-		response = "HELO text\nIP:[%s]\nPort:[%d]\nStudentID:[%s]\n" % (HOST, PORT, STUDENT_ID)
+		ipaddress = address[0]
+		portnum = address[1]
+		response = "HELO text\nIP:[%s]\nPort:[%d]\nStudentID:[%s]\n" % (ipaddress, portnum, STUDENT_ID)
 		clientSocket.sendall(response.encode())
-	clientSocket.close()
-	print ("Closed connection!")
+		clientSocket.close()
+	elif whichPacket == RESPONSE_PACKET_TWO:
+		clientSocket.close()
+	print ("Thread finished!\nClosed connection!")
 	
-
 
 def handleInput(data):
 	if ("HELO text" in data):
 		return RESPONSE_PACKET_ONE
-
-
+	elif ("KILL_SERVICE" in data):
+		return RESPONSE_PACKET_TWO
 
 def main():
+	parser = argparse.ArgumentParser(description='Start server on port entered')
+	parser.add_argument("-start", help="port number on which to start server")
+	args = parser.parse_args()
+
+	if (args.start):
+		PORT = int(args.start)
+	else:
+		PORT = 8000
+		
 	serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	serversocket.bind((HOST, PORT))
 	serversocket.listen(5)
@@ -40,29 +51,23 @@ def main():
 	while 1:
 		print ("Waiting for client connections...")
 		#accept connections from outside
-		print ("Current amount of working threads: %d" % (len(allThreadsWorking)))
-		print ("Current amount of queued connections: %d" % (len(waiting_conns)))
 		(clientsocket, address) = serversocket.accept()
 		waiting_conns.append((clientsocket, address))
+		print ("Current amount of queued connections: %d" % (len(waiting_conns)))
 
-		
+		for t in allThreadsWorking:
+				if (not t.isAlive()):
+					allThreadsWorking.remove(t)
+					print ("Removed an unworking thread from the pool.")
 
-		if (len(allThreadsWorking) < MAX_AMOUNT): #can create a new thread
+		if (len(allThreadsWorking) <= max_threads): #can create a new thread
 			connTuple = waiting_conns.pop()
 			clsocket = connTuple[0]
 			address = connTuple[1]
-
-			thread = threading.Thread(target=print_add, args = (clsocket, address))
+			thread = threading.Thread(target=sendResponse, args = (clsocket, address))
 			allThreadsWorking.append(thread)
-			print ("Current amount of working threads: %d" % (len(allThreadsWorking)))
-			print ("Current amount of queued connections: %d" % (len(waiting_conns)))
 			thread.start()
-			allThreadsWorking.remove(thread)
-			thread.join()
-			
-			print ("Current amount of working threads: %d" % (len(allThreadsWorking)))
-			print ("Current amount of queued connections: %d" % (len(waiting_conns)))
-		# ct = client_thread(clientsocket)
-		# ct.run()
+			print ("Current working threads: " + str(len(allThreadsWorking)))
+		print ("Still Current amount of queued connections: %d" % (len(waiting_conns)))
 
 main()
