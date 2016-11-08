@@ -4,7 +4,7 @@ import socket
 import threading
 
 max_threads = 10
-HOST = "localhost"
+HOST = "10.62.0.145"
 BUFFER = 1024
 UTF = "utf-8"
 RESPONSE_PACKET_ONE = 1
@@ -13,23 +13,21 @@ STUDENT_ID = "13319349"
 allThreadsWorking = []
 waiting_conns = []
 
-def sendResponse(clientSocket, address):
-	print ("Thread doing work....")
-	data = (clientSocket.recv(BUFFER)).decode(UTF)
-	whichPacket = handleInput(data)
-	if whichPacket == RESPONSE_PACKET_ONE:
-		ipaddress = address[0]
-		portnum = address[1]
-		response = "HELO text\nIP:[%s]\nPort:[%d]\nStudentID:[%s]\n" % (ipaddress, portnum, STUDENT_ID)
-		clientSocket.sendall(response.encode())
-		clientSocket.close()
-	elif whichPacket == RESPONSE_PACKET_TWO:
-		clientSocket.close()
-	print ("Thread finished!\nClosed connection!")
+def sendResponse(clientSocket, address, port):
+        print ("Thread doing work....")
+        data = (clientSocket.recv(BUFFER)).decode(UTF)
+        whichPacket = handleInput(data)
+        if whichPacket == RESPONSE_PACKET_ONE:
+                response = "HELO BASE_TEST\nIP:%s\nPort:%d\nStudentID:[%s]" % (HOST, port, STUDENT_ID)
+                clientSocket.sendall(response.encode())
+                clientSocket.close()
+        elif whichPacket == RESPONSE_PACKET_TWO:
+                clientSocket.close()
+        print ("Thread finished!\nClosed connection!")
 	
 
 def handleInput(data):
-	if ("HELO text" in data):
+	if ("HELO" in data):
 		return RESPONSE_PACKET_ONE
 	elif ("KILL_SERVICE" in data):
 		return RESPONSE_PACKET_TWO
@@ -64,7 +62,7 @@ def main():
 			connTuple = waiting_conns.pop()
 			clsocket = connTuple[0]
 			address = connTuple[1]
-			thread = threading.Thread(target=sendResponse, args = (clsocket, address))
+			thread = threading.Thread(target=sendResponse, args = (clsocket, address, PORT))
 			allThreadsWorking.append(thread)
 			thread.start()
 			print ("Current working threads: " + str(len(allThreadsWorking)))
